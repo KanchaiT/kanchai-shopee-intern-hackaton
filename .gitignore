@@ -1,0 +1,31 @@
+# ---- Secrets: never commit these --------------------------------------------
+.env
+credentials.json
+client_secret*.json
+*-token.json
+token.json
+
+# ---- Private data produced by meetings --------------------------------------
+meetings/
+/transcript.txt
+/summary.md
+
+# ---- Local configuration: copy rooms.example.csv to rooms.csv and edit ------
+rooms.csv
+
+# ---- Personal example scripts with hard-coded room / OAuth identifiers -------
+# (not used by the app; remove these two lines to publish them)
+create_stonehenge.py
+cancel_stonehenge.py
+
+# ---- Python -------------------------------------------------------------------
+env/
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# ---- Editors / OS -------------------------------------------------------------
+.DS_Store
+.idea/
+.vscode/

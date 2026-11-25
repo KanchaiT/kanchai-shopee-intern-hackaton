@@ -1,0 +1,11 @@
+# Runtime dependencies. Apple Silicon Mac (mlx-whisper). Python 3.11+ (developed on 3.15).
+# Also needed for transcribing audio FILES: ffmpeg  (brew install ffmpeg)
+numpy>=2.0
+sounddevice>=0.5
+websockets>=13
+requests>=2.31
+certifi
+mlx-whisper>=0.4
+google-genai>=3.0                # summary through Compass (openthai.py)
+google-api-python-client>=2.100  # Google Calendar
+google-auth-oauthlib>=1.0

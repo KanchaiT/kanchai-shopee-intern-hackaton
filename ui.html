@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meeting assistant</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #ffffff; --text: #14171c; --muted: #667085; --line: #e3e6ec;
+    --accent: #4f46e5; --accent-fg: #ffffff; --accent-soft: #eef0ff;
+    --good: #0f7b55; --good-soft: #e3f6ee; --warn: #a8510a; --warn-soft: #fff1de;
+    --bad: #b42318; --bad-soft: #fde8e6; --you: #eef0ff; --minute: #f1f3f6; --shadow: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1014; --card: #161a21; --text: #edf0f5; --muted: #98a2b3; --line: #272c37;
+      --accent: #8b93ff; --accent-fg: #0e1014; --accent-soft: #232748;
+      --good: #4ade9b; --good-soft: #12302a; --warn: #f5b05c; --warn-soft: #36270f;
+      --bad: #ff8a80; --bad-soft: #3a1a18; --you: #232748; --minute: #20252f; --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }  /* a class with its own display must not defeat the hidden attribute */
+  html { color-scheme: light dark; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  header { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 14px; padding: 12px 24px; background: var(--card); border-bottom: 1px solid var(--line); }
+  .brand { font-weight: 650; font-size: 17px; letter-spacing: -.01em; display: flex; align-items: center; gap: 9px; }
+  .logo { width: 22px; height: 22px; border-radius: 7px; background: var(--accent); display: inline-block; position: relative; }
+  .logo::after { content: ""; position: absolute; inset: 6px; border-radius: 50%; background: var(--accent-fg); }
+  .grow { flex: 1; }
+  .timer { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 14px; }
+  .pill { display: inline-flex; align-items: center; gap: 8px; padding: 5px 13px; border-radius: 999px; font-size: 13.5px; font-weight: 600; background: var(--minute); color: var(--muted); }
+  .pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+  .pill.wait { background: var(--accent-soft); color: var(--accent); }
+  .pill.awake { background: var(--good-soft); color: var(--good); }
+  .pill.awake::before { animation: pulse 1.3s ease-in-out infinite; }
+  .pill.loading { background: var(--warn-soft); color: var(--warn); }
+  .pill.attn { background: var(--warn-soft); color: var(--warn); }
+  .pill.done { background: var(--good-soft); color: var(--good); }
+  .pill.error { background: var(--bad-soft); color: var(--bad); }
+  @keyframes pulse { 50% { opacity: .25; transform: scale(.7); } }
+  main { max-width: 1120px; margin: 0 auto; padding: 22px 24px 60px; display: grid; gap: 18px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); }
+  .controls { padding: 18px 20px; display: grid; gap: 14px; }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+  button { font: inherit; font-weight: 600; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--text); padding: 9px 18px; cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--muted); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+  button.danger { color: var(--bad); }
+  label.check { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; }
+  .hint { color: var(--muted); font-size: 14px; margin: 0; }
+  .hint kbd { font: inherit; font-weight: 600; color: var(--text); background: var(--minute); border-radius: 6px; padding: 1px 7px; }
+  .bar { height: 10px; border-radius: 999px; background: var(--minute); overflow: hidden; }
+  .bar > i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 999px; transition: width .35s ease; }
+  .barline { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 13.5px; margin-top: 7px; }
+  .barline b { color: var(--text); font-variant-numeric: tabular-nums; }
+  .banner { padding: 12px 16px; border-radius: 12px; font-size: 14.5px; white-space: pre-wrap; border: 1px solid transparent; }
+  .banner.bad { background: var(--bad-soft); color: var(--bad); }
+  .banner.warn { background: var(--warn-soft); color: var(--warn); }
+  .banner.info { background: var(--accent-soft); color: var(--accent); }
+  .banner ul { margin: 6px 0 0 18px; padding: 0; }
+  .grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 18px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } header { padding: 12px 16px; } main { padding: 16px; } }
+  .panel { display: flex; flex-direction: column; min-height: 0; }
+  .panel h2 { margin: 0; padding: 14px 18px; font-size: 14px; letter-spacing: .02em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; }
+  .scroll { height: min(54vh, 500px); overflow-y: auto; padding: 14px 18px; display: flex; flex-direction: column; gap: 10px; }
+  .scroll:empty::before { content: attr(data-empty); color: var(--muted); font-size: 14px; margin: auto; text-align: center; max-width: 30ch; }
+  .msg { max-width: 86%; padding: 9px 14px; border-radius: 14px; overflow-wrap: anywhere; }
+  .msg small { display: block; font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; opacity: .6; margin-bottom: 1px; }
+  .msg.you { align-self: flex-end; background: var(--you); border-bottom-right-radius: 4px; }
+  .msg.minute { align-self: flex-start; background: var(--minute); border-bottom-left-radius: 4px; }
+  .msg.status { align-self: center; max-width: 100%; background: none; color: var(--muted); font-size: 13px; padding: 2px 0; text-align: center; }
+  .msg.tool, .msg.tool_result { align-self: flex-start; max-width: 100%; font: 12.5px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; background: none; border: 1px dashed var(--line); color: var(--muted); border-radius: 10px; padding: 6px 10px; }
+  .msg.error { align-self: center; max-width: 100%; background: var(--bad-soft); color: var(--bad); font-size: 13.5px; }
+  .note { display: grid; grid-template-columns: 62px 1fr; gap: 10px; font-size: 14.5px; overflow-wrap: anywhere; }
+  .note time { color: var(--muted); font: 12.5px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .result { padding: 18px 20px; display: grid; gap: 12px; }
+  .result h2 { margin: 0; font-size: 16px; }
+  .result code { background: var(--minute); padding: 2px 8px; border-radius: 6px; font-size: 13px; overflow-wrap: anywhere; }
+  .summary { background: var(--minute); border-radius: 10px; padding: 6px 18px 12px; max-height: 420px; overflow: auto; font-size: 14.5px; margin: 0; overflow-wrap: anywhere; }
+  .summary h3 { margin: 14px 0 4px; font-size: 15px; }
+  .summary p { margin: 4px 0; }
+  .summary ul { margin: 4px 0 4px 20px; padding: 0; }
+  details { padding: 0 4px; color: var(--muted); font-size: 14px; }
+  summary { cursor: pointer; padding: 6px 0; }
+  pre#log { white-space: pre-wrap; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; max-height: 280px; overflow: auto; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); }
+  .overlay { position: fixed; inset: 0; background: rgba(8,10,14,.55); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 20; }
+  .overlay[hidden] { display: none; }
+  .dialog { width: min(520px, 100%); background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 22px; box-shadow: 0 20px 50px rgba(0,0,0,.35); display: grid; gap: 14px; }
+  .dialog h2 { margin: 0; font-size: 18px; }
+  .dialog p { margin: 0; overflow-wrap: anywhere; }
+  .dialog .count { color: var(--muted); font-size: 13.5px; }
+  .dialog .row { justify-content: flex-end; }
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 10px 18px; border-radius: 10px; font-size: 14px; z-index: 30; max-width: 90vw; }
+  .toast[hidden] { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><span class="logo" aria-hidden="true"></span> Meeting assistant</div>
+  <div id="pill" class="pill">Connecting…</div>
+  <div class="grow"></div>
+  <div id="timer" class="timer" aria-label="Elapsed time"></div>
+</header>
+
+<main>
+  <section class="card controls" aria-label="Meeting controls">
+    <div class="row">
+      <button id="start" class="primary">Start meeting</button>
+      <button id="stop" class="danger" hidden>End meeting</button>
+      <button id="endconv" hidden>End conversation</button>
+      <label class="check" id="skipwrap"><input type="checkbox" id="skip"> Transcript only (skip the summary)</label>
+    </div>
+    <div id="progress" hidden>
+      <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="bar"><i id="fill"></i></div>
+      <div class="barline"><span id="plabel"></span><b id="ppct"></b></div>
+    </div>
+    <p class="hint" id="hint"></p>
+  </section>
+
+  <div id="banners"></div>
+
+  <div class="grid">
+    <section class="card panel" aria-label="Conversation">
+      <h2>Conversation</h2>
+      <div id="conv" class="scroll" role="log" aria-live="polite" data-empty="Start a meeting, then say “Hello Minute” to talk to the assistant."></div>
+    </section>
+    <section class="card panel" aria-label="Live notes">
+      <h2>Live notes</h2>
+      <div id="notes" class="scroll" role="log" aria-live="off" data-empty="The meeting transcript appears here as it is written."></div>
+    </section>
+  </div>
+
+  <section id="result" class="card result" hidden>
+    <h2>Meeting finished</h2>
+    <div id="savedline"></div>
+    <div id="summary" class="summary" hidden></div>
+    <div class="row"><button id="copy" hidden>Copy summary</button></div>
+  </section>
+
+  <details id="logbox">
+    <summary>Technical log</summary>
+    <pre id="log"></pre>
+  </details>
+</main>
+
+<div id="modal" class="overlay" hidden>
+  <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="mtitle" aria-describedby="mtext">
+    <h2 id="mtitle">Please confirm</h2>
+    <p id="mtext"></p>
+    <div class="count" id="mcount"></div>
+    <div class="row">
+      <button id="no">Cancel</button>
+      <button id="yes" class="primary">Approve</button>
+    </div>
+  </div>
+</div>
+<div id="toast" class="toast" role="status" hidden></div>
+
+<script>
+"use strict";
+const TOKEN = "__TOKEN__";
+const $ = (id) => document.getElementById(id);
+let S = { phase: "idle", pct: 0, label: "", awake: false, confirm: null, problems: [] };
+let connected = false, busy = false, toastTimer = null, gotSnapshot = false, prevPhase = null;
+
+// ---------------------------------------------------------------- server
+function connect() {
+  const es = new EventSource("/events?t=" + encodeURIComponent(TOKEN));
+  es.onopen = () => { connected = true; render(); };
+  es.onerror = () => { connected = false; render(); };   // the browser reconnects by itself
+  es.onmessage = (e) => handle(JSON.parse(e.data));
+}
+
+async function api(path, body) {
+  busy = true; render();
+  try {
+    const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json", "X-Token": TOKEN }, body: JSON.stringify(body || {}) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok && j.error && !j.problems) toast(j.error);
+    return j;
+  } catch (e) {
+    toast("Cannot reach the app. Is it still running?");
+    return {};
+  } finally { busy = false; render(); }
+}
+
+function handle(ev) {
+  if (ev.type === "snapshot") {
+    S = ev.state;
+    if (!gotSnapshot) { prevPhase = S.phase; gotSnapshot = true; }   // a page load must not scroll anywhere
+    $("conv").replaceChildren(); $("notes").replaceChildren(); $("log").textContent = "";
+    ev.conversation.forEach(addConv); ev.notes.forEach(addNote); $("log").textContent = ev.log.join("\n");
+  } else if (ev.type === "state") {
+    const { type, ...rest } = ev; Object.assign(S, rest);
+  } else if (ev.type === "conv") addConv(ev);
+  else if (ev.type === "note") addNote(ev);
+  else if (ev.type === "log") appendLog(ev.line);
+  render();
+}
+
+// ---------------------------------------------------------------- lists
+function stick(el, fn) {
+  const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+  fn();
+  if (atBottom) el.scrollTop = el.scrollHeight;
+}
+const LABELS = { you: "You", minute: "Minute" };
+function addConv(ev) {
+  const el = $("conv");
+  stick(el, () => {
+    const d = document.createElement("div");
+    d.className = "msg " + ev.kind;
+    if (LABELS[ev.kind]) { const s = document.createElement("small"); s.textContent = LABELS[ev.kind]; d.appendChild(s); }
+    const t = document.createElement("span");
+    t.textContent = (ev.kind === "tool" ? "🔧 " : ev.kind === "tool_result" ? "↳ " : "") + ev.text;
+    d.appendChild(t);
+    el.appendChild(d);
+  });
+}
+function addNote(ev) {
+  const el = $("notes");
+  stick(el, () => {
+    const d = document.createElement("div"); d.className = "note";
+    const t = document.createElement("time"); t.textContent = ev.time;
+    const x = document.createElement("span"); x.textContent = ev.text;
+    d.append(t, x); el.appendChild(d);
+  });
+}
+function appendLog(line) {
+  const el = $("log"); el.textContent += (el.textContent ? "\n" : "") + line;
+  const lines = el.textContent.split("\n"); if (lines.length > 400) el.textContent = lines.slice(-400).join("\n");
+}
+
+// ---------------------------------------------------------------- render
+function pill() {
+  switch (S.phase) {
+    case "idle": return ["", "Ready to start"];
+    case "loading": return ["loading", "Loading… " + S.pct + "%"];
+    case "running": return S.confirm ? ["attn", "Waiting for your confirmation"]
+      : S.awake ? ["awake", "Awake: listening to you"] : ["wait", "Waiting for “Hello Minute”"];
+    case "stopping": return ["loading", "Finishing…"];
+    case "done": return ["done", "Meeting finished"];
+    case "failed": return ["error", "Could not start"];
+  }
+  return ["", ""];
+}
+function fmt(sec) { sec = Math.max(0, Math.floor(sec)); return String(Math.floor(sec / 60)).padStart(2, "0") + ":" + String(sec % 60).padStart(2, "0"); }
+
+const EMPTY_CONV = { idle: "Start a meeting, then say “Hello Minute” to talk to the assistant.", loading: "Getting ready…",
+  running: "Nothing said yet. Say “Hello Minute” to talk to the assistant.", stopping: "", done: "No conversation this time.", failed: "" };
+const EMPTY_NOTES = { idle: "The meeting transcript appears here as it is written.", loading: "Getting ready…",
+  running: "Listening… sentences appear here as people speak.", stopping: "", done: "Nothing was transcribed.", failed: "" };
+
+function render() {
+  $("conv").dataset.empty = EMPTY_CONV[S.phase] ?? ""; $("notes").dataset.empty = EMPTY_NOTES[S.phase] ?? "";
+  const p = $("pill");
+  if (!connected) { p.className = "pill error"; p.textContent = "Reconnecting to the app…"; }
+  else { const [cls, txt] = pill(); p.className = "pill " + cls; p.textContent = txt; }
+
+  const idle = ["idle", "done", "failed"].includes(S.phase);
+  $("start").hidden = !idle; $("skipwrap").hidden = !idle;
+  $("start").disabled = busy || !connected;
+  $("stop").hidden = !["loading", "running"].includes(S.phase);
+  $("stop").textContent = S.phase === "loading" ? "Cancel" : "End meeting";
+  $("stop").disabled = busy;
+  $("endconv").hidden = !(S.phase === "running" && S.awake);
+  $("endconv").disabled = busy || !!S.confirm;
+
+  const loading = S.phase === "loading";
+  $("progress").hidden = !loading;
+  $("fill").style.width = S.pct + "%"; $("bar").setAttribute("aria-valuenow", S.pct);
+  $("plabel").textContent = S.label || ""; $("ppct").textContent = S.pct + "%";
+  $("hint").replaceChildren();
+  const h = $("hint");
+  if (S.phase === "running") {
+    const k = (t) => { const e = document.createElement("kbd"); e.textContent = t; return e; };
+    h.append("Say ", k("Hello Minute"), " to talk to the assistant, ", k("Stop Minute"), " to end the chat, ",
+      k("Finished meeting"), " to end the meeting. Notes are being written live.");
+  } else if (S.phase === "idle") h.textContent = "Starts the voice assistant and the live note-taker together. Your microphone is used; audio is sent to iApp for the notes.";
+  else if (loading) h.textContent = "First start can take a moment while the speech model loads.";
+  else if (S.phase === "stopping") h.textContent = "Writing the last sentences and the summary. This can take a little while.";
+
+  // banners
+  const b = $("banners"); b.replaceChildren();
+  const add = (cls, text, list) => {
+    const d = document.createElement("div"); d.className = "banner " + cls; d.textContent = text;
+    if (list && list.length) { const u = document.createElement("ul"); list.forEach((x) => { const li = document.createElement("li"); li.textContent = x; u.appendChild(li); }); d.appendChild(u); }
+    b.appendChild(d);
+  };
+  if (S.problems && S.problems.length) add("bad", "Cannot start yet. Fix these first:", S.problems);
+  else if (S.error) add("bad", S.error);
+  if (S.warning) add("warn", S.warning);
+  if (S.message) add("info", S.message);
+
+  // result
+  const done = S.phase === "done";
+  $("result").hidden = !done;
+  if (done) {
+    const sl = $("savedline"); sl.replaceChildren();
+    if (S.saved_to) { sl.append("Saved in "); const c = document.createElement("code"); c.textContent = S.saved_to; sl.appendChild(c); }
+    $("summary").hidden = !S.summary; renderSummary(S.summary || "", $("summary"));
+    $("copy").hidden = !S.summary;
+    if (gotSnapshot && prevPhase !== "done") $("result").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  prevPhase = S.phase;
+
+  // confirmation dialog
+  const m = $("modal");
+  if (S.confirm) {
+    if (m.hidden) { m.hidden = false; $("no").focus(); }
+    $("mtext").textContent = S.confirm.prompt;
+    $("yes").disabled = $("no").disabled = busy;
+  } else m.hidden = true;
+  tick();
+}
+
+// A small, safe Markdown view for the summary (headings, bullets, **bold**). Built from DOM nodes only,
+// so nothing in a transcript or summary can inject HTML.
+function inline(el, text) {
+  text.split(/(\*\*[^*]+\*\*)/).forEach((part) => {
+    if (part.length > 4 && part.startsWith("**") && part.endsWith("**")) { const b = document.createElement("strong"); b.textContent = part.slice(2, -2); el.appendChild(b); }
+    else el.appendChild(document.createTextNode(part));
+  });
+}
+function renderSummary(md, el) {
+  el.replaceChildren(); let ul = null;
+  for (const raw of md.split("\n")) {
+    const line = raw.trimEnd(); let m;
+    if (!line.trim()) { ul = null; continue; }
+    if ((m = line.match(/^#{1,4}\s+(.*)$/))) { ul = null; const h = document.createElement("h3"); inline(h, m[1]); el.appendChild(h); }
+    else if ((m = line.match(/^\s*[-*•]\s+(.*)$/))) {
+      if (!ul) { ul = document.createElement("ul"); el.appendChild(ul); }
+      const li = document.createElement("li"); inline(li, m[1]); ul.appendChild(li);
+    } else { ul = null; const p = document.createElement("p"); inline(p, line); el.appendChild(p); }
+  }
+}
+
+function tick() {
+  const now = Date.now() / 1000;
+  if (S.confirm) {
+    const left = Math.max(0, Math.round(S.confirm.deadline - now));
+    $("mcount").textContent = "Cancels by itself in " + left + " s if you do not answer.";
+  }
+  const t = $("timer");
+  if (S.phase === "running" && S.ready_at) t.textContent = fmt(now - S.ready_at);
+  else if (S.phase === "loading" && S.started_at) t.textContent = fmt(now - S.started_at);
+  else t.textContent = "";
+}
+setInterval(tick, 500);
+
+function toast(text) {
+  const t = $("toast"); t.textContent = text; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 5000);
+}
+
+// ---------------------------------------------------------------- buttons
+$("start").onclick = () => api("/api/start", { skip_summary: $("skip").checked });
+$("stop").onclick = () => api("/api/stop");
+$("endconv").onclick = () => api("/api/end_conversation");
+$("yes").onclick = () => api("/api/confirm", { approve: true });
+$("no").onclick = () => api("/api/confirm", { approve: false });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && S.confirm && !busy) api("/api/confirm", { approve: false }); });
+$("copy").onclick = async () => {
+  try { await navigator.clipboard.writeText(S.summary || ""); toast("Summary copied."); } catch (e) { toast("Could not copy. Select the text instead."); }
+};
+
+connect();
+render();
+</script>
+</body>
+</html>
